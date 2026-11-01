@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monitoring PLTS & Smart Relay</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] }
+        }
+      }
+    };
+    if (localStorage.getItem('plts_theme') === 'light') {
+      document.documentElement.classList.remove('dark');
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; }
+    input[type=range]::-webkit-slider-runnable-track { height: 10px; border-radius: 999px; background: transparent; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 24px; height: 24px; border-radius: 50%;
+      background: #ffffff; border: 4px solid #0ea5e9;
+      box-shadow: 0 4px 10px rgba(14,165,233,0.4);
+      margin-top: -7px; transition: transform 0.15s ease;
+    }
+    input[type=range]::-webkit-slider-thumb:active { transform: scale(1.15); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen transition-colors duration-200 flex flex-col justify-between">
+
+  <!-- Navbar -->
+  <header class="sticky top-0 z-30 backdrop-blur-md bg-white/85 dark:bg-slate-900/85 border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-amber-400 via-orange-500 to-sky-500 flex items-center justify-center shadow-lg shadow-orange-500/20 text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 id="hdrBoardName" class="text-lg font-bold tracking-tight text-slate-900 dark:text-white">ESP8266-PLTS</h1>
+            <span id="hdrBoardId" class="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">#001</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Telemetri Baterai, Suhu &amp; Kendali Relay Pintar</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <div class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+          <svg class="w-4 h-4 text-sky-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span id="localTime">--:--:--</span>
+        </div>
+
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-semibold border border-emerald-500/20">
+          <span class="relative flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+          <span id="connPill">Sistem Online</span>
+        </div>
+
+        <!-- Tombol Mode Terang / Gelap -->
+        <button onclick="toggleTheme()" class="p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-amber-400 border border-slate-200 dark:border-slate-700 transition" title="Ubah Tampilan Terang / Gelap">
+          <svg id="iconSun" class="w-4 h-4 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/>
+          </svg>
+          <svg id="iconMoon" class="w-4 h-4 block dark:hidden text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 w-full space-y-6">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="hidden fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-900 dark:bg-slate-800 text-white border border-slate-700 shadow-2xl text-sm">
+      <span id="toastDot" class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+      <span id="toastMsg">Berhasil disimpan</span>
+    </div>
+
+    <!-- Banner Informasi IP Lokal & SoftAP (Selalu Aktif) -->
+    <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="w-10 h-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-500/20">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0"/>
+            </svg>
+          </div>
+          <div class="min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-slate-500 dark:text-slate-400">IP Lokal Jaringan (STA):</span>
+              <span id="staBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Terhubung</span>
+            </div>
+            <div class="flex items-center gap-2 mt-0.5">
+              <span id="staIpText" class="text-base sm:text-lg font-bold font-mono text-sky-600 dark:text-sky-400 truncate">192.168.1.48</span>
+              <span id="staSsidText" class="text-xs text-slate-400 truncate">(WiFi_Rumah_PLTS)</span>
+            </div>
+          </div>
+        </div>
+        <button onclick="copyLocalIp()" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition shrink-0">
+          Salin IP
+        </button>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-500/20">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.636 18.364a9 9 0 010-12.728m12.728 0a9 9 0 010 12.728m-9.9-2.829a5 5 0 010-7.07m7.072 0a5 5 0 010 7.07M13 12a1 1 0 11-2 0 1 1 0 012 0z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Akses SoftAP (Selalu Aktif):</span>
+              <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">Siaga</span>
+            </div>
+            <div class="text-sm sm:text-base font-bold font-mono text-slate-800 dark:text-slate-100 mt-0.5">
+              <span id="apSsidText">ESP_Config</span> &bull; <span id="apIpText" class="text-indigo-600 dark:text-indigo-400">192.168.4.1</span>
+            </div>
+          </div>
+        </div>
+        <span class="hidden sm:inline-block text-[11px] text-slate-400 text-right">Cek IP Lokal<br>kapan saja</span>
+      </div>
+    </section>
+
+    <!-- 4 Kartu Utama: Suhu, Kelembaban, Tegangan, & Kondisi Relay -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      <!-- Suhu -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Suhu Ruangan</p>
+          <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white font-mono">
+            <span id="val-temp">32.6</span><span class="text-lg text-slate-400 ml-1">&deg;C</span>
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">Batas Relay: <strong id="cardThreshold" class="text-rose-500">33.0 &deg;C</strong></p>
+        </div>
+        <div class="h-14 w-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-500">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Kelembaban -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Kelembaban</p>
+          <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white font-mono">
+            <span id="val-hum">64.5</span><span class="text-lg text-slate-400 ml-1">%</span>
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">Sensor AHT10 Real-time</p>
+        </div>
+        <div class="h-14 w-14 rounded-2xl bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-500">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3.25c-4.5 5.4-6.75 8.55-6.75 11.25a6.75 6.75 0 0013.5 0c0-2.7-2.25-5.85-6.75-11.25z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Tegangan -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Tegangan Baterai</p>
+          <h2 class="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-white font-mono">
+            <span id="val-volt">25.40</span><span class="text-lg text-slate-400 ml-1">V</span>
+          </h2>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-1.5">Sistem Baterai PLTS</p>
+        </div>
+        <div class="h-14 w-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-500">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Kondisi Relay -->
+      <div class="bg-white dark:bg-slate-900 rounded-2xl p-5 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <p class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">Kondisi Relay</p>
+          <div class="flex items-center gap-2 mt-1">
+            <span id="cardRelayState" class="text-2xl sm:text-3xl font-extrabold text-slate-400">OFF</span>
+            <span id="cardRelayMode" class="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20">OTOMATIS</span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-2">Pin Kontrol: <code class="font-mono">GPIO D4</code></p>
+        </div>
+        <div id="cardRelayIconWrap" class="h-14 w-14 rounded-2xl bg-slate-200/70 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 transition-all">
+          <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 3v9m6.364-6.364a9 9 0 11-12.728 0"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3 Grafik Real-Time (Skala Suhu 0-50, Kelembaban 0-100, Tegangan 0-50) -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Grafik Suhu (&deg;C)
+          </h3>
+          <span class="text-[11px] font-mono text-slate-400">Skala 0 &ndash; 50</span>
+        </div>
+        <div class="relative h-52 w-full"><canvas id="chartTemp"></canvas></div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-500"></span> Grafik Kelembaban (%)
+          </h3>
+          <span class="text-[11px] font-mono text-slate-400">Skala 0 &ndash; 100</span>
+        </div>
+        <div class="relative h-52 w-full"><canvas id="chartHum"></canvas></div>
+      </div>
+
+      <div class="bg-white dark:bg-slate-900 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="text-sm font-semibold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Grafik Tegangan (V)
+          </h3>
+          <span class="text-[11px] font-mono text-slate-400">Skala 0 &ndash; 50</span>
+        </div>
+        <div class="relative h-52 w-full"><canvas id="chartVolt"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Panel Kendali Relay & Pengaturan Multi-WiFi / Board -->
+    <section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+      <!-- Kiri: Kendali Relay (Manual & Otomatis + Slider Ambang Batas) -->
+      <div class="lg:col-span-5 bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-5">
+        <div class="space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h2 class="text-base font-bold text-slate-900 dark:text-white">Kendali Kipas / Relay Utama</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">Pilih operasi Otomatis (Sensor Suhu) atau Saklar Manual</p>
+            </div>
+            <div id="relayPill" class="px-3 py-1 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+              MATI (OFF)
+            </div>
+          </div>
+
+          <!-- Pemilih Mode Otomatis vs Manual -->
+          <div class="grid grid-cols-2 gap-2 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+            <button type="button" id="btnModeAuto" onclick="setRelayMode('auto')" class="py-2.5 px-3 rounded-lg text-xs font-bold transition">
+              Otomatis (Sensor Suhu)
+            </button>
+            <button type="button" id="btnModeManual" onclick="setRelayMode('manual')" class="py-2.5 px-3 rounded-lg text-xs font-bold transition">
+              Manual (Saklar ON/OFF)
+            </button>
+          </div>
+
+          <!-- Box Kontrol Manual -->
+          <div id="manualControlBox" class="hidden p-4 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-500 dark:text-slate-400">Saklar Langsung (Override Sensor):</span>
+              <span class="text-xs font-mono text-slate-400">Suhu saat ini: <strong id="manualTempInfo" class="text-slate-700 dark:text-slate-200">32.6 &deg;C</strong></span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button type="button" id="btnManualOn" onclick="setManualRelay(1)" class="py-3.5 px-4 rounded-xl font-bold text-sm border transition flex items-center justify-center gap-2">
+                <span>HIDUPKAN (ON)</span>
+              </button>
+              <button type="button" id="btnManualOff" onclick="setManualRelay(0)" class="py-3.5 px-4 rounded-xl font-bold text-sm border transition flex items-center justify-center gap-2">
+                <span>MATIKAN (OFF)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Box Slider Ambang Batas Otomatis -->
+          <div id="autoControlBox" class="p-5 rounded-2xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 space-y-4">
+            <div class="flex items-baseline justify-between">
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Ambang Batas Suhu</p>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Histeresis &plusmn;1.0&deg;C &bull; Cek &amp; eksekusi tiap 1 menit pasca kirim server</p>
+              </div>
+              <div class="text-3xl font-extrabold text-sky-600 dark:text-sky-400 font-mono">
+                <span id="sliderValText">33.0</span><span class="text-base font-medium text-slate-400 ml-0.5">&deg;C</span>
+              </div>
+            </div>
+
+            <!-- Slider Track + Input -->
+            <div class="space-y-2 pt-1">
+              <div class="relative h-2.5 w-full rounded-full bg-slate-200 dark:bg-slate-800">
+                <div id="sliderFill" class="absolute top-0 left-0 h-2.5 rounded-full bg-gradient-to-r from-sky-500 to-rose-500 pointer-events-none" style="width: 66%;"></div>
+                <input type="range" id="thresholdSlider" min="0" max="50" step="0.5" value="33.0"
+                  oninput="onSliderInput(this.value)" class="absolute inset-0 w-full h-2.5">
+              </div>
+              <div class="flex justify-between text-[11px] font-mono text-slate-400">
+                <span>0&deg;C</span>
+                <span>25&deg;C</span>
+                <span>50&deg;C</span>
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between text-xs bg-white dark:bg-slate-900 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800">
+              <span class="text-emerald-600 dark:text-emerald-400 font-medium">ON &ge; <strong id="trigOnText">34.0</strong>&deg;C</span>
+              <span class="text-slate-300 dark:text-slate-700">|</span>
+              <span class="text-slate-500 dark:text-slate-400 font-medium">OFF &le; <strong id="trigOffText">32.0</strong>&deg;C</span>
+            </div>
+
+            <button type="button" onclick="saveThreshold()" class="w-full py-2.5 px-4 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm shadow-lg shadow-sky-500/20 transition active:scale-[0.99]">
+              Simpan Ambang Batas Suhu
+            </button>
+          </div>
+        </div>
+
+        <!-- Konfigurasi Identitas Board & Host Database -->
+        <form id="boardConfigForm" class="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-400">Identitas Perangkat &amp; Host Server</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div>
+              <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Board Name</label>
+              <input type="text" id="cfgName" value="ESP8266-PLTS" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-medium focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Board ID (Code)</label>
+              <input type="text" id="cfgId" value="001" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono focus:outline-none focus:border-sky-500">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-500 dark:text-slate-400 mb-1">Host / Server IP</label>
+              <input type="text" id="cfgHost" value="esp8266.local" required class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-xs font-mono focus:outline-none focus:border-sky-500">
+            </div>
+          </div>
+          <button type="submit" class="w-full py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 text-white text-xs font-semibold transition">
+            Simpan Konfigurasi Board
+          </button>
+        </form>
+      </div>
+
+      <!-- Kanan: Pengaturan Multi-WiFi & Hapus SSID -->
+      <div class="lg:col-span-7 bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-between space-y-6">
+        <div class="space-y-5">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div>
+              <h2 class="text-base font-bold text-slate-900 dark:text-white">Manajemen Multi-WiFi (Maks 5 SSID)</h2>
+              <p class="text-xs text-slate-500 dark:text-slate-400">ESP8266 otomatis terhubung ke jaringan tersedia tanpa mematikan SoftAP</p>
+            </div>
+            <button type="button" onclick="reconnectWifi()" class="px-3.5 py-2 rounded-xl text-xs font-semibold bg-sky-500/10 hover:bg-sky-500/20 text-sky-600 dark:text-sky-400 border border-sky-500/20 transition">
+              Sambungkan Ulang WiFi
+            </button>
+          </div>
+
+          <!-- Form Tambah SSID -->
+          <form id="wifiAddForm" class="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div class="sm:col-span-5">
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Nama WiFi (SSID)</label>
+              <input type="text" id="wifiSsidInput" placeholder="Contoh: WiFi_PLTS_Utama" required
+                class="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:border-sky-500">
+            </div>
+            <div class="sm:col-span-5">
+              <label class="block text-xs font-medium text-slate-600 dark:text-slate-300 mb-1">Password WiFi</label>
+              <div class="relative">
+                <input type="password" id="wifiPassInput" placeholder="Kosongkan jika terbuka"
+                  class="w-full pl-3.5 pr-10 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-sm focus:outline-none focus:border-sky-500">
+                <button type="button" onclick="toggleWifiPass()" class="absolute inset-y-0 right-0 px-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs">
+                  &#128065;
+                </button>
+              </div>
+            </div>
+            <div class="sm:col-span-2 flex items-end">
+              <button type="submit" class="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm shadow-lg shadow-emerald-600/20 transition">
+                Tambah
+              </button>
+            </div>
+          </form>
+
+          <!-- Tabel Daftar SSID Tersimpan -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-500 dark:text-slate-400">Daftar Jaringan Tersimpan di LittleFS</span>
+              <span id="wifiCountBadge" class="text-xs font-mono px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">2 / 5 SSID</span>
+            </div>
+
+            <div class="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/50">
+              <table class="w-full text-left border-collapse">
+                <thead>
+                  <tr class="border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase tracking-wider text-slate-400 bg-slate-100/70 dark:bg-slate-900/70">
+                    <th class="py-3 px-4 w-12">#</th>
+                    <th class="py-3 px-4">SSID Jaringan</th>
+                    <th class="py-3 px-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody id="wifiTableBody" class="divide-y divide-slate-200 dark:divide-slate-800/80 text-sm"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+          <strong>Tips Lapangan:</strong> Jika Anda berada di dekat perangkat tanpa tahu IP router, hubungkan HP/Laptop ke WiFi SoftAP <code class="font-mono font-bold">ESP_Config</code> lalu buka <code class="font-mono font-bold">http://192.168.4.1</code> untuk melihat <strong>IP Lokal Jaringan (STA)</strong> yang sedang aktif di bagian atas halaman ini.
+        </div>
+      </div>
+
+    </section>
+  </main>
+
+  <!-- Modal Konfirmasi Hapus SSID -->
+  <div id="delModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl max-w-sm w-full p-5 shadow-2xl space-y-4">
+      <div class="flex items-center gap-3 text-rose-500">
+        <div class="p-2.5 rounded-xl bg-rose-500/10 border border-rose-500/20">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </div>
+        <h3 class="text-base font-bold text-slate-900 dark:text-white">Hapus Jaringan WiFi?</h3>
+      </div>
+      <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+        Apakah Anda yakin ingin menghapus SSID <strong id="delModalSsid" class="font-mono text-slate-900 dark:text-white"></strong> dari memori perangkat?
+      </p>
+      <div class="flex justify-end gap-2 pt-2">
+        <button type="button" onclick="closeDelModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
+          Batal
+        </button>
+        <button type="button" onclick="confirmDeleteWifi()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/20 transition">
+          Ya, Hapus SSID
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 dark:border-slate-800/80 py-4 mt-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+      <div><strong>PLTS Smart Monitor</strong> &bull; Multi-WiFi + Persistent SoftAP &bull; Uptime: <span id="uptimeText" class="font-mono">1j 24m 10d</span></div>
+      <div>Endpoint Telemetri: <code class="font-mono">/realtime/add.php</code></div>
+    </div>
+  </footer>
+
+  <script>
+    // State simulasi dengan penyimpanan localStorage saat diuji di Pratinjau Browser
+    let demoMode = false;
+    const defaultMockState = {
+      temperature: 32.8,
+      humidity: 64.2,
+      voltage: 25.4,
+      relay: 0,
+      autoMode: true,
+      manualState: 0,
+      threshold: 33.0,
+      staConnected: true,
+      staSSID: 'WiFi_Rumah_PLTS',
+      staIP: '192.168.1.48',
+      apSSID: 'ESP_Config',
+      apIP: '192.168.4.1',
+      boardName: 'ESP8266-PLTS',
+      boardID: '001',
+      hostName: 'esp8266.local',
+      uptime: 5050,
+      wifi: [
+        { index: 0, ssid: 'WiFi_Rumah_PLTS' },
+        { index: 1, ssid: 'Hotspot_Teknisi' }
+      ]
+    };
+
+    let mockState = (() => {
+      try {
+        const saved = localStorage.getItem('plts_mock_cfg');
+        if (saved) return { ...defaultMockState, ...JSON.parse(saved) };
+      } catch (e) {}
+      return { ...defaultMockState };
+    })();
+
+    function saveMockToStorage() {
+      try {
+        localStorage.setItem('plts_mock_cfg', JSON.stringify({
+          autoMode: mockState.autoMode,
+          manualState: mockState.manualState,
+          threshold: mockState.threshold,
+          boardName: mockState.boardName,
+          boardID: mockState.boardID,
+          hostName: mockState.hostName,
+          staConnected: mockState.staConnected,
+          staSSID: mockState.staSSID,
+          staIP: mockState.staIP,
+          wifi: mockState.wifi
+        }));
+      } catch (e) {}
+    }
+
+    let currentStaSsid = mockState.staSSID;
+    let currentStaIp = mockState.staIP;
+    let sliderDragging = false;
+    let configInitialized = false;
+    let pendingDelIndex = null;
+    let pendingDelSsid = '';
+
+    function showToast(msg, isErr = false) {
+      const t = document.getElementById('toast');
+      const dot = document.getElementById('toastDot');
+      document.getElementById('toastMsg').textContent = msg;
+      dot.className = 'w-2.5 h-2.5 rounded-full ' + (isErr ? 'bg-rose-500' : 'bg-emerald-400');
+      t.classList.remove('hidden');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => t.classList.add('hidden'), 3200);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+    }
+
+    function tickClock() {
+      document.getElementById('localTime').textContent = new Date().toLocaleTimeString('id-ID', { hour12: false });
+    }
+    setInterval(tickClock, 1000);
+    tickClock();
+
+    const MAX_POINTS = 60;
+    const labels = Array(MAX_POINTS).fill('');
+    const tempSeries = Array.from({ length: MAX_POINTS }, (_, i) => 31.5 + Math.sin(i / 5) * 2.2);
+    const humSeries  = Array.from({ length: MAX_POINTS }, (_, i) => 64 + Math.cos(i / 6) * 4.5);
+    const voltSeries = Array.from({ length: MAX_POINTS }, (_, i) => 25.2 + Math.sin(i / 8) * 0.8);
+
+    function getChartColors() {
+      const isDark = document.documentElement.classList.contains('dark');
+      return {
+        grid: isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(15, 23, 42, 0.08)',
+        ticks: isDark ? '#94a3b8' : '#64748b'
+      };
+    }
+
+    function makeChartOptions(minVal, maxVal, stepVal) {
+      const c = getChartColors();
+      return {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 250 },
+        elements: { point: { radius: 0 }, line: { tension: 0.35, borderWidth: 2.2 } },
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: false },
+          y: {
+            min: minVal,
+            max: maxVal,
+            ticks: { stepSize: stepVal, color: c.ticks, font: { size: 10 } },
+            border: { display: false },
+            grid: { color: c.grid }
+          }
+        }
+      };
+    }
+
+    const chartT = new Chart(document.getElementById('chartTemp').getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets: [{ data: tempSeries, borderColor: '#f43f5e', backgroundColor: 'rgba(244,63,94,0.12)', fill: true }] },
+      options: makeChartOptions(0, 50, 10)
+    });
+
+    const chartH = new Chart(document.getElementById('chartHum').getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets: [{ data: humSeries, borderColor: '#0ea5e9', backgroundColor: 'rgba(14,165,233,0.12)', fill: true }] },
+      options: makeChartOptions(0, 100, 20)
+    });
+
+    const chartV = new Chart(document.getElementById('chartVolt').getContext('2d'), {
+      type: 'line',
+      data: { labels, datasets: [{ data: voltSeries, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.12)', fill: true }] },
+      options: makeChartOptions(0, 50, 10)
+    });
+
+    function toggleTheme() {
+      const root = document.documentElement;
+      const isDark = root.classList.toggle('dark');
+      localStorage.setItem('plts_theme', isDark ? 'dark' : 'light');
+      const c = getChartColors();
+      [chartT, chartH, chartV].forEach(ch => {
+        ch.options.scales.y.grid.color = c.grid;
+        ch.options.scales.y.ticks.color = c.ticks;
+        ch.update('none');
+      });
+    }
+
+    function toggleWifiPass() {
+      const inp = document.getElementById('wifiPassInput');
+      inp.type = inp.type === 'password' ? 'text' : 'password';
+    }
+
+    function copyLocalIp() {
+      if (!currentStaIp || currentStaIp === 'Belum Terhubung') {
+        showToast('Perangkat belum mendapatkan IP Lokal dari router', true);
+        return;
+      }
+      const ta = document.createElement('textarea');
+      ta.value = currentStaIp;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      showToast('IP Lokal disalin: ' + currentStaIp);
+    }
+
+    function onSliderInput(val) {
+      sliderDragging = true;
+      const v = parseFloat(val);
+      document.getElementById('sliderValText').textContent = v.toFixed(1);
+      document.getElementById('sliderFill').style.width = ((v / 50) * 100) + '%';
+      document.getElementById('trigOnText').textContent = (v + 1.0).toFixed(1);
+      document.getElementById('trigOffText').textContent = Math.max(0, v - 1.0).toFixed(1);
+    }
+
+    function evaluateMockRelay() {
+      if (!mockState.autoMode) {
+        mockState.relay = mockState.manualState;
+      } else {
+        if (mockState.temperature >= mockState.threshold + 1.0) mockState.relay = 1;
+        else if (mockState.temperature <= mockState.threshold - 1.0) mockState.relay = 0;
+      }
+    }
+
+    function updateRelayUI(isRelayOn, isAuto, thresholdVal, tempVal) {
+      const cState = document.getElementById('cardRelayState');
+      const cMode  = document.getElementById('cardRelayMode');
+      const cIcon  = document.getElementById('cardRelayIconWrap');
+      const pill   = document.getElementById('relayPill');
+
+      cMode.textContent = isAuto ? 'OTOMATIS' : 'MANUAL';
+      cMode.className = isAuto
+        ? 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20'
+        : 'text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20';
+
+      if (isRelayOn) {
+        cState.textContent = 'ON';
+        cState.className = 'text-2xl sm:text-3xl font-extrabold text-emerald-500';
+        cIcon.className = 'h-14 w-14 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-500 shadow-lg shadow-emerald-500/20 transition-all';
+        pill.textContent = 'MENYALA (ON)';
+        pill.className = 'px-3 py-1 rounded-xl text-xs font-bold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30';
+      } else {
+        cState.textContent = 'OFF';
+        cState.className = 'text-2xl sm:text-3xl font-extrabold text-slate-400';
+        cIcon.className = 'h-14 w-14 rounded-2xl bg-slate-200/70 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-400 transition-all';
+        pill.textContent = 'MATI (OFF)';
+        pill.className = 'px-3 py-1 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+      }
+
+      const btnAuto = document.getElementById('btnModeAuto');
+      const btnMan  = document.getElementById('btnModeManual');
+      const boxAuto = document.getElementById('autoControlBox');
+      const boxMan  = document.getElementById('manualControlBox');
+
+      if (isAuto) {
+        btnAuto.className = 'py-2.5 px-3 rounded-lg text-xs font-bold bg-sky-600 text-white shadow transition';
+        btnMan.className  = 'py-2.5 px-3 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition';
+        boxAuto.classList.remove('hidden');
+        boxMan.classList.add('hidden');
+      } else {
+        btnMan.className  = 'py-2.5 px-3 rounded-lg text-xs font-bold bg-amber-500 text-white shadow transition';
+        btnAuto.className = 'py-2.5 px-3 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition';
+        boxMan.classList.remove('hidden');
+        boxAuto.classList.add('hidden');
+      }
+
+      const bOn  = document.getElementById('btnManualOn');
+      const bOff = document.getElementById('btnManualOff');
+      if (isRelayOn) {
+        bOn.className  = 'py-3.5 px-4 rounded-xl font-bold text-sm bg-emerald-600 text-white border-emerald-500 shadow-lg shadow-emerald-600/25 transition flex items-center justify-center gap-2';
+        bOff.className = 'py-3.5 px-4 rounded-xl font-bold text-sm bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center gap-2';
+      } else {
+        bOn.className  = 'py-3.5 px-4 rounded-xl font-bold text-sm bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition flex items-center justify-center gap-2';
+        bOff.className = 'py-3.5 px-4 rounded-xl font-bold text-sm bg-rose-600 text-white border-rose-500 shadow-lg shadow-rose-600/25 transition flex items-center justify-center gap-2';
+      }
+
+      document.getElementById('manualTempInfo').textContent = Number(tempVal).toFixed(1) + ' °C';
+      document.getElementById('cardThreshold').textContent = Number(thresholdVal).toFixed(1) + ' °C';
+
+      if (!sliderDragging) {
+        document.getElementById('thresholdSlider').value = thresholdVal;
+        onSliderInput(thresholdVal);
+        sliderDragging = false;
+      }
+    }
+
+    async function apiCall(url, paramsObj) {
+      if (demoMode) {
+        if (url === '/api/relay') {
+          if (paramsObj.mode) mockState.autoMode = (paramsObj.mode === 'auto');
+          if (paramsObj.state !== undefined) {
+            mockState.autoMode = false;
+            mockState.manualState = Number(paramsObj.state);
+          }
+          if (paramsObj.threshold !== undefined) mockState.threshold = parseFloat(paramsObj.threshold);
+          evaluateMockRelay();
+          saveMockToStorage();
+          return { ok: true };
+        }
+        if (url === '/api/wifi/add') {
+          const ex = mockState.wifi.find(w => w.ssid === paramsObj.ssid);
+          if (!ex) {
+            if (mockState.wifi.length >= 5) throw new Error('Slot WiFi penuh (Maksimal 5 SSID)');
+            mockState.wifi.push({ index: mockState.wifi.length, ssid: paramsObj.ssid });
+          }
+          if (!mockState.staConnected) {
+            mockState.staConnected = true;
+            mockState.staSSID = paramsObj.ssid;
+            mockState.staIP = '192.168.1.48';
+          }
+          saveMockToStorage();
+          return { ok: true };
+        }
+        if (url === '/api/wifi/delete') {
+          const delSsid = mockState.wifi[Number(paramsObj.index)]?.ssid;
+          mockState.wifi.splice(Number(paramsObj.index), 1);
+          mockState.wifi.forEach((w, idx) => w.index = idx);
+          if (!mockState.wifi.length) {
+            mockState.staConnected = false;
+            mockState.staSSID = '';
+            mockState.staIP = 'Belum Terhubung';
+          } else if (delSsid === mockState.staSSID) {
+            mockState.staSSID = mockState.wifi[0].ssid;
+          }
+          saveMockToStorage();
+          return { ok: true };
+        }
+        if (url === '/api/wifi/connect') {
+          if (mockState.wifi.length > 0) {
+            mockState.staConnected = true;
+            mockState.staSSID = mockState.wifi[0].ssid;
+            mockState.staIP = '192.168.1.48';
+            saveMockToStorage();
+            return { ok: true, msg: 'Terhubung ke ' + mockState.staSSID };
+          }
+          throw new Error('Belum ada SSID tersimpan');
+        }
+        if (url === '/api/config') {
+          mockState.boardName = paramsObj.name;
+          mockState.boardID = paramsObj.id;
+          mockState.hostName = paramsObj.host;
+          saveMockToStorage();
+          return { ok: true, boardName: mockState.boardName, boardID: mockState.boardID, hostName: mockState.hostName };
+        }
+      }
+
+      const qs = new URLSearchParams({ ...paramsObj, _t: Date.now() }).toString();
+      const res = await fetch(url + '?' + qs, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false) {
+        throw new Error(data.msg || 'Permintaan gagal diproses');
+      }
+      return data;
+    }
+
+    async function setRelayMode(mode) {
+      try {
+        await apiCall('/api/relay', { mode });
+        showToast(mode === 'auto' ? 'Mode Relay: Otomatis (Sensor Suhu)' : 'Mode Relay: Saklar Manual');
+        await refreshStatus();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function setManualRelay(state) {
+      try {
+        await apiCall('/api/relay', { mode: 'manual', state: String(state) });
+        showToast(state ? 'Relay DIHIDUPKAN secara manual' : 'Relay DIMATIKAN secara manual');
+        await refreshStatus();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function saveThreshold() {
+      const val = document.getElementById('thresholdSlider').value;
+      sliderDragging = false;
+      try {
+        await apiCall('/api/relay', { mode: 'auto', threshold: val });
+        showToast('Ambang batas disimpan: ' + parseFloat(val).toFixed(1) + ' °C (Eksekusi tiap 1 menit)');
+        await refreshStatus();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    function renderWifiTable(list) {
+      const tbody = document.getElementById('wifiTableBody');
+      document.getElementById('wifiCountBadge').textContent = `${list.length} / 5 SSID`;
+      tbody.innerHTML = '';
+
+      if (!list.length) {
+        tbody.innerHTML = `<tr><td colspan="3" class="py-6 text-center text-xs text-slate-400">Belum ada SSID WiFi tersimpan. Silakan tambahkan di atas.</td></tr>`;
+        return;
+      }
+
+      list.forEach((item, idx) => {
+        const isConnected = currentStaSsid && item.ssid === currentStaSsid;
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-100/70 dark:hover:bg-slate-900/60 transition';
+        tr.innerHTML = `
+          <td class="py-3 px-4 font-mono text-xs text-slate-400">${idx + 1}</td>
+          <td class="py-3 px-4 font-medium text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <span>${escapeHtml(item.ssid)}</span>
+            ${isConnected ? '<span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">Terhubung</span>' : ''}
+          </td>
+          <td class="py-3 px-4 text-right">
+            <button type="button" data-idx="${item.index}" data-ssid="${escapeHtml(item.ssid)}" onclick="openDelModal(this.dataset.idx, this.dataset.ssid)" class="px-3 py-1.5 rounded-xl text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/20 transition">
+              Hapus
+            </button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function refreshWifiList() {
+      if (demoMode) {
+        renderWifiTable(mockState.wifi);
+        return;
+      }
+      try {
+        const list = await fetch('/api/wifi?_t=' + Date.now(), { cache: 'no-store' }).then(r => r.json());
+        renderWifiTable(list);
+      } catch (e) {
+        demoMode = true;
+        renderWifiTable(mockState.wifi);
+      }
+    }
+
+    function openDelModal(index, ssid) {
+      pendingDelIndex = Number(index);
+      pendingDelSsid = ssid;
+      document.getElementById('delModalSsid').textContent = ssid;
+      document.getElementById('delModal').classList.remove('hidden');
+    }
+
+    function closeDelModal() {
+      pendingDelIndex = null;
+      pendingDelSsid = '';
+      document.getElementById('delModal').classList.add('hidden');
+    }
+
+    async function confirmDeleteWifi() {
+      if (pendingDelIndex === null) return;
+      const idx = pendingDelIndex;
+      const ssid = pendingDelSsid;
+      closeDelModal();
+      try {
+        await apiCall('/api/wifi/delete', { index: String(idx) });
+        showToast(`SSID "${ssid}" berhasil dihapus`);
+        await refreshStatus();
+        await refreshWifiList();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    async function reconnectWifi() {
+      try {
+        const r = await apiCall('/api/wifi/connect', {});
+        showToast(r.msg || 'Menyambungkan ulang ke jaringan WiFi...');
+        await refreshStatus();
+        await refreshWifiList();
+      } catch (e) {
+        showToast(e.message, true);
+      }
+    }
+
+    document.getElementById('wifiAddForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const ssid = document.getElementById('wifiSsidInput').value.trim();
+      const pass = document.getElementById('wifiPassInput').value;
+      if (!ssid) return;
+      try {
+        await apiCall('/api/wifi/add', { ssid, pass });
+        e.target.reset();
+        showToast(`SSID "${ssid}" tersimpan di LittleFS`);
+        await refreshStatus();
+        await refreshWifiList();
+      } catch (err) {
+        showToast(err.message || 'Gagal menyimpan SSID', true);
+      }
+    });
+
+    document.getElementById('boardConfigForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('cfgName').value.trim();
+      const id   = document.getElementById('cfgId').value.trim();
+      const host = document.getElementById('cfgHost').value.trim();
+      try {
+        const res = await apiCall('/api/config', { name, id, host });
+        document.getElementById('cfgName').value = res.boardName || name;
+        document.getElementById('cfgId').value   = res.boardID || id;
+        document.getElementById('cfgHost').value = res.hostName || host;
+        document.getElementById('hdrBoardName').textContent = res.boardName || name;
+        document.getElementById('hdrBoardId').textContent   = '#' + (res.boardID || id);
+        configInitialized = true;
+        showToast('Konfigurasi board berhasil disimpan ke LittleFS');
+      } catch (err) {
+        showToast(err.message || 'Gagal menyimpan konfigurasi board', true);
+      }
+    });
+
+    function applyStatusData(d) {
+      document.getElementById('val-temp').textContent = Number(d.temperature).toFixed(1);
+      document.getElementById('val-hum').textContent  = Number(d.humidity).toFixed(1);
+      document.getElementById('val-volt').textContent = Number(d.voltage).toFixed(2);
+
+      document.getElementById('hdrBoardName').textContent = d.boardName || 'Monitoring PLTS';
+      document.getElementById('hdrBoardId').textContent   = '#' + (d.boardID || '001');
+
+      currentStaSsid = d.staConnected ? d.staSSID : '';
+      currentStaIp   = d.staIP || 'Belum Terhubung';
+
+      const staBadge = document.getElementById('staBadge');
+      document.getElementById('staIpText').textContent   = currentStaIp;
+      document.getElementById('staSsidText').textContent = d.staConnected ? `(${d.staSSID})` : '';
+      document.getElementById('apSsidText').textContent  = d.apSSID || 'ESP_Config';
+      document.getElementById('apIpText').textContent    = d.apIP || '192.168.4.1';
+
+      if (d.staConnected) {
+        staBadge.textContent = 'Terhubung';
+        staBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400';
+      } else {
+        staBadge.textContent = 'Offline (SoftAP)';
+        staBadge.className = 'text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400';
+      }
+
+      const activeElId = document.activeElement ? document.activeElement.id : '';
+      const isEditingCfg = (activeElId === 'cfgName' || activeElId === 'cfgId' || activeElId === 'cfgHost');
+      if (!configInitialized && !isEditingCfg) {
+        document.getElementById('cfgName').value = d.boardName || '';
+        document.getElementById('cfgId').value   = d.boardID || '';
+        document.getElementById('cfgHost').value = d.hostName || '';
+        configInitialized = true;
+      }
+
+      if (d.uptime !== undefined) {
+        const h = Math.floor(d.uptime / 3600);
+        const m = Math.floor((d.uptime % 3600) / 60);
+        const s = d.uptime % 60;
+        document.getElementById('uptimeText').textContent = `${h}j ${m}m ${s}d`;
+      }
+
+      updateRelayUI(d.relay === 1, d.autoMode, d.threshold, d.temperature);
+
+      const tNow = new Date().toLocaleTimeString('id-ID', { hour12: false });
+      labels.shift(); labels.push(tNow);
+      tempSeries.shift(); tempSeries.push(d.temperature);
+      humSeries.shift();  humSeries.push(d.humidity);
+      voltSeries.shift(); voltSeries.push(d.voltage);
+
+      chartT.update();
+      chartH.update();
+      chartV.update();
+    }
+
+    async function refreshStatus() {
+      if (demoMode) {
+        mockState.uptime += 2;
+        mockState.temperature = Math.max(20, Math.min(45, mockState.temperature + (Math.random() - 0.48) * 0.6));
+        mockState.humidity    = Math.max(40, Math.min(90, mockState.humidity + (Math.random() - 0.5) * 1.2));
+        mockState.voltage     = Math.max(22, Math.min(28.8, mockState.voltage + (Math.random() - 0.5) * 0.15));
+        evaluateMockRelay();
+        applyStatusData(mockState);
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/status?_t=' + Date.now(), { cache: 'no-store' });
+        if (!res.ok) throw new Error('offline');
+        const d = await res.json();
+        applyStatusData(d);
+      } catch (e) {
+        demoMode = true;
+        applyStatusData(mockState);
+      }
+    }
+
+    document.addEventListener('mouseup', () => { sliderDragging = false; });
+    document.addEventListener('touchend', () => { sliderDragging = false; });
+
+    refreshStatus().then(refreshWifiList);
+    setInterval(refreshStatus, 2000);
+  </script>
+</body>
+</html>
